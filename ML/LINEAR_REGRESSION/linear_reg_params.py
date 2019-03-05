@@ -175,6 +175,28 @@ def compute_adjusted_r_squared (r_squared, df_residual, df_total):
     return r_square_bar
     
 
+def compute_press_statistic(X, slope, intercept, Y):
+    K = np.ones (shape = X.shape)
+    A = np.concatenate ((K , X), axis = 1)
+    A_Transpose = A.transpose()
+    M = A_Transpose.dot(A)
+    M_inv = np.linalg.inv (M)
+    L1 = A.dot(M_inv)
+    hat = L1.dot(A_Transpose)
+    den = (1 - np.diagonal(hat))
+    reg_line = construct_regression_line (X, slope, intercept, Y)
+    reg_line =  reg_line[:,np.newaxis]      
+    res = np.subtract (reg_line,Y)     
+    den =  den[:,np.newaxis]     
+    sqr = np.divide (res,den)   
+    sqr = np.square(sqr)    
+    return sqr.sum()
+
+def compute_r_square_predicted(X, Y, slope, intercept, SST):    
+    PRESS = compute_press_statistic (X, slope , intercept, Y)  
+    r_square_pred = 1 - (PRESS / SST )   
+    return r_square_pred
+
 """
 The standard error of the regression slope, s (also called the standard 
 error of estimate) represents the average distance that your observed values 
@@ -214,13 +236,14 @@ def compute_fstat (r_squared , df1, df2):
     F = np.divide (s1,s2)
     return F
     
-def compute_fstat_pvalue(confidence_level, df1, df2):
+def compute_fstat_pvalue(fvalue, confidence_level, df1, df2):
     alpha = 1 - (confidence_level/100)
     alpha = alpha/2      
-    crit = sp_stats.f.ppf(alpha, df1, df2)    
-    p = sp_stats.f.cdf(crit, df1, df2)    
+    #crit = sp_stats.f.ppf(alpha, df1, df2)  
+    crit = sp_stats.f.ppf(q=1-0.05, dfn=df1, dfd=df2)
+    p = 1 - sp_stats.f.cdf( fvalue, dfn=df1, dfd=df2) 
     return crit,p
-    
+     
 # ******************************************************************* #
 
 
@@ -284,12 +307,13 @@ def linear_regression_compute_parameters (IV, DV, confidence_level):
     r_square_adjusted = compute_adjusted_r_squared (r_squared, df_residual, df_total)
     t.add_row(['R Squared Adjusted', r_square_adjusted])
     
-    F_ratio = compute_fstat (r_squared , df_regression, df_residual)
-    t.add_row(['F ratio', F_ratio])
+    r_sqaure_predicted = compute_r_square_predicted (X, Y, slope, intercept, SST)
+    t.add_row(['R Squared predicted', r_sqaure_predicted])
     
-    crit,p = compute_fstat_pvalue (95, df_regression, df_residual)
-    t.add_row(['F ratio critical value', crit])
-    t.add_row(['F ratio p value', p])
+    F_ratio = compute_fstat (r_squared , df_regression, df_residual)
+    crit,p = compute_fstat_pvalue (F_ratio, 95, df_regression, df_residual)
+    t.add_row(['F ratio/Critical/p-value', str(F_ratio) + "/" + str(crit) + "/" + str(p)])
+    
     
     sb1 = compute_standard_error_predictor (X, SE)
     t.add_row(['Standard Error of the predictor b1',sb1])
